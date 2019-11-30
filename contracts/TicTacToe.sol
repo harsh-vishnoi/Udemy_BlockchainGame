@@ -1,4 +1,4 @@
-pragma solidity 0.5.11;
+pragma solidity 0.5.12;
 
 contract TicTacToe {
 
@@ -22,7 +22,7 @@ contract TicTacToe {
     event NextPlayer(address player);
     event GameWin(address winner);
     event GameDraw();
-     event PayoutSuccess(address receiver, uint amountInWei);
+    event PayoutSuccess(address receiver, uint amountInWei);
 
     constructor () public payable {
         require(msg.value == gameCost, "Pay 0.1 ethers to join game");
@@ -49,15 +49,15 @@ contract TicTacToe {
         player2.transfer(address(this).balance/2);
     }
 
-    function emergencyCashOut() public {
-        require(gameValidUntil < now, "Wait for player to play");
-        require(activeGame, "game is not active");
-    }
+    // function emergencyCashOut() public {
+    //     require(gameValidUntil < now, "Wait for player to play");
+    //     require(activeGame, "game is not active");
+    // }
 
     function joinGame() public payable{
         require(msg.value == gameCost, "Pay 0.1 ethers to join game");
         require(msg.sender != player1, "Player1 has already joined Game");
-        require(msg.sender == address(0), "This Player has already joined Game");
+        require(player2 == address(0), "Error");
         player2 = msg.sender;
         activePlayer = player2;
         activeGame = true;

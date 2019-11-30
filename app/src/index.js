@@ -1,76 +1,136 @@
-import Web3 from "web3";
-import metaCoinArtifact from "../../build/contracts/MetaCoin.json";
+import { default as Web3 } from "web3";
+import { default as contract } from "truffle-contract";
+import $ from "jquery";
 
-const App = {
-  web3: null,
-  account: null,
-  meta: null,
+import tictactoeArtifacts from "../../build/contracts/TicTacToe.json";
+
+//abi file
+var TicTacToe = contract(tictactoeArtifacts);
+
+var accounts;
+var player1;
+var player2;
+var ticTacToeInstance;
+
+window.App = {
 
   start: async function() {
-    const { web3 } = this;
+    var self = this;
 
-    try {
-      // get contract instance
-      const networkId = await web3.eth.net.getId();
-      const deployedNetwork = metaCoinArtifact.networks[networkId];
-      this.meta = new web3.eth.Contract(
-        metaCoinArtifact.abi,
-        deployedNetwork.address,
-      );
+    //set provider
+    TicTacToe.setProvider(web3.currentProvider);
 
-      // get accounts
-      const accounts = await web3.eth.getAccounts();
-      this.account = accounts[0];
+    // Get the intial accounts
+    web3.eth.getAccounts(function(err, accs) {
+      if (err != null) {
+        alert("There was an error fetching your accounts.");
+        return;
+      }
 
-      this.refreshBalance();
-    } catch (error) {
-      console.error("Could not connect to contract or chain.");
+      if (accs.length == 0) {
+        alert("Couldn't get any accounts! Make sure your Ethereum client is configured correctly.");
+        return;
+      }
+
+      accounts = accs;
+      player1 = accounts[0];
+      player2 = accounts[1];
+    });
+  },
+
+  newGame: async function() {
+    TicTacToe.new({from: player1, value: web3.utils.toWei("0.1", "ether"), gas: 3000000}).then(instance => {
+      ticTacToeInstance = instance;
+
+      for(var i = 0; i < 3; i++){
+        for(var j = 0;j < 3; j++){
+          $($("#board")[0].children[0].children[i].children[j]).off('click').click({x: i, y:j}, App.setStone1);        
+        }
+      }
+
+      console.log(instance);
+    })
+  },
+
+  joinGame: async function() {
+    
+    var gameAddress = prompt("Address of the Game");
+
+    if(gameAddress != null){
+
+      TicTacToe.at(gameAddress).then(instance => {
+        ticTacToeInstance = instance;
+        return ticTacToeInstance.joinGame({from: player2, value: web3.utils.toWei("0.1", "ether"), gas: 3000000});
+      }).then(txResult => {
+
+        for(var i = 0; i < 3; i++) {
+          for(var j = 0; j < 3; j++) {
+            $($("#board")[0].children[0].children[i].children[j]).off('click').click({x: i, y:j}, App.setStone2);
+          }
+        }
+
+        console.log(txResult);
+      })
     }
   },
 
-  refreshBalance: async function() {
-    const { getBalance } = this.meta.methods;
-    const balance = await getBalance(this.account).call();
+  setStone1: function(event) {
+    console.log(event);
+    for(var i = 0; i < 3; i++) {
+      for(var j = 0; j < 3; j++) {
+        $($("#board")[0].children[0].children[i].children[j]).prop('onclick',null).off('click');
+      }
+    }
 
-    const balanceElement = document.getElementsByClassName("balance")[0];
-    balanceElement.innerHTML = balance;
+    ticTacToeInstance.setStone(event.data.x, event.data.y, {from: player1}).then(txResult => {
+      console.log(txResult);
+      App.printBoard();
+    })
+
   },
 
-  sendCoin: async function() {
-    const amount = parseInt(document.getElementById("amount").value);
-    const receiver = document.getElementById("receiver").value;
+  setStone2: function(event) {
+    console.log(event);
+    for(var i = 0; i < 3; i++) {
+      for(var j = 0; j < 3; j++) {
+        $($("#board")[0].children[0].children[i].children[j]).prop('onclick',null).off('click');
+      }
+    }
 
-    this.setStatus("Initiating transaction... (please wait)");
+    ticTacToeInstance.setStone(event.data.x, event.data.y, {from: player2}).then(txResult => {
+      console.log(txResult);
+      App.printBoard();
+    })
 
-    const { sendCoin } = this.meta.methods;
-    await sendCoin(receiver, amount).send({ from: this.account });
-
-    this.setStatus("Transaction complete!");
-    this.refreshBalance();
   },
 
-  setStatus: function(message) {
-    const status = document.getElementById("status");
-    status.innerHTML = message;
+  printBoard: function() {
+    ticTacToeInstance.getBoard.call().then(board => {
+      for(var i=0; i < board.length; i++) {
+        for(var j=0; j < board[i].length; j++) {
+          if(board[i][j] == player1) {
+            $("#board")[0].children[0].children[i].children[j].innerHTML = "X";
+          } else if(board[i][j] != 0) {
+            $("#board")[0].children[0].children[i].children[j].innerHTML = "O";
+          }
+        }
+      }
+    });
   },
+
+  nextPlayer: function(error, eventobj) {
+
+  }
+
 };
 
-window.App = App;
-
 window.addEventListener("load", function() {
-  if (window.ethereum) {
-    // use MetaMask's provider
-    App.web3 = new Web3(window.ethereum);
-    window.ethereum.enable(); // get permission to access accounts
-  } else {
-    console.warn(
-      "No web3 detected. Falling back to http://127.0.0.1:8545. You should remove this fallback when you deploy live",
-    );
-    // fallback - use your fallback strategy (local node / hosted node + in-dapp id mgmt / fail)
-    App.web3 = new Web3(
-      new Web3.providers.HttpProvider("http://127.0.0.1:8545"),
-    );
-  }
+
+  // if (typeof web3 !== 'undefined') {
+  //   window.web3 = new Web3(web3.currentProvider);
+  // } else {
+     window.web3 = new Web3(new Web3.providers.HttpProvider("http://127.0.0.1:8545"));
+  // }
 
   App.start();
 });
